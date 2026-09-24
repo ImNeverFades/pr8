@@ -1,9 +1,9 @@
 name: API CI/CD
 
-# 1. Когда запускать (Triggers)
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*.*.*" ] 
   pull_request:
     branches: [ "main" ]
 
@@ -38,3 +38,34 @@ jobs:
       # 5. Запускаем тесты для проверки логики 
       - name: Запуск автотестов (Pytest)
         run: pytest
+
+
+  build-and-push:
+
+    needs: build-and-test 
+
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Скачиваем код репозитория
+        uses: actions/checkout@v4
+
+      - name: Логин в Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Получаем версию релиза (тег)
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Сборка и отправка Docker-образа
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./api.dockerfile 
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/bmi-api:latest
+            ${{ secrets.DOCKER_USERNAME }}/bmi-api:${{ env.VERSION }}
